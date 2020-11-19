@@ -115,9 +115,11 @@ def entgeltpunkte_lohn(
     -------
 
     """
-   durchschnittslohn_dt = (1/12) * ges_renten_vers_params["beitragspflichtiger_durchschnittslohn"]
-    return bruttolohn_m.clip(upper=_rentenv_beitr_bemess_grenze) / durchschnittslohn_dt
-   
+    durchschnittslohn_dt = (1 / 12) * ges_renten_vers_params[
+        "beitragspflichtiger_durchschnittslohn"
+    ]
+    return bruttolohn_m.clip(upper=rentenv_beitr_bemess_grenze) / durchschnittslohn_dt
+
 
 def zugangsfaktor(alter: IntSeries, regelaltersgrenze: FloatSeries) -> FloatSeries:
     """Calculate the zugangsfaktor determining depending on age your pension claim.
