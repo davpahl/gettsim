@@ -209,49 +209,30 @@ def anzurechnende_rente(rente_anspr_m, grundrente1):
     return out
 
 
-def grundsicherung_grundrente(anzurechnende_rente, grundrentenzeiten):
-    """ Variable that indicates that person can benefit from
-    grundsicherung im alter & grundrente at the same time
-
-    Parameters
-    ----------
-    rente_anspr_m
-    bruttolohn_m
-    grundrente_anrechnung_einkommen
-    grundrentenzeiten
-
-    Returns
-    -------
-
-    """
-    return (anzurechnende_rente < 432 + 500) & (grundrentenzeiten >= 396)
-
-
-def grundsicherung_keine_grundrente(
-    grundrentenzeiten, rente_anspr_m, grundrente1, bruttolohn_m
-):
-    """ Variable that indicates that person benefits from grundsicherung
-    im alter but not from grundrente
-
-    Parameters
-    ----------
-    rente_anspr_m
-    bruttolohn_m
-    grundrente_anrechnung_einkommen
-    grundrentenzeiten
-
-    Returns
-    -------
-
-    """
-    return (rente_anspr_m + grundrente1 + bruttolohn_m < 432 + 500) & (
-        grundrentenzeiten < 396
+def wohngeld_grundrente(anzurechnende_rente, grundrentenzeiten):
+    return (
+        (500 + 432 - anzurechnende_rente <= 432)
+        & (500 + 432 - anzurechnende_rente > 0)
+        & (grundrentenzeiten >= 33 * 12)
     )
 
 
-def grundsicherung_im_alter_2020(rente_anspr_m):
-    out = ((432 + 500) - rente_anspr_m).clip(lower=0)
-    return out
+def wohngeld_keine_grundrente(rente_anspr_m, bruttolohn_m, grundrentenzeiten):
+    return (
+        (500 + 432 - (rente_anspr_m + bruttolohn_m) <= 432)
+        & (500 + 432 - (rente_anspr_m + bruttolohn_m) > 0)
+        & (grundrentenzeiten < 33 * 12)
+    )
+
+
+def grundsicherung_grundrente(anzurechnende_rente, grundrentenzeiten):
+    return (500 + 432 - anzurechnende_rente > 432) & (grundrentenzeiten >= 33 * 12)
+
+
+def grundsicherung_keine_grundrente(rente_anspr_m, bruttolohn_m, grundrentenzeiten):
+    return (500 + 432 - (rente_anspr_m + bruttolohn_m) > 432) & (
+        grundrentenzeiten < 33 * 12
+    )
 
 
 def grundsicherung(
@@ -264,10 +245,36 @@ def grundsicherung(
 ):
     out = grundsicherung_grundrente.astype(float) * np.nan
 
-    out.loc[grundsicherung_keine_grundrente] = 432 + 500
-    -(rente_anspr_m + grundrente1 + bruttolohn_m)
+    out.loc[grundsicherung_keine_grundrente] = (
+        432 + 500 - (rente_anspr_m + grundrente1 + bruttolohn_m)
+    ).clip(lower=0)
 
     out.loc[grundsicherung_grundrente] = ((432 + 500) - anzurechnende_rente).clip(
         lower=0
     )
+    return out
+
+
+def wohngeld(
+    wohngeld_grundrente,
+    wohngeld_keine_grundrente,
+    rente_anspr_m,
+    grundrente1,
+    bruttolohn_m,
+    anzurechnende_rente,
+):
+
+    out = wohngeld_grundrente.astype(float) * np.nan
+
+    out.loc[wohngeld_keine_grundrente] = (
+        432 + 500 - (rente_anspr_m + grundrente1 + bruttolohn_m)
+    ).clip(lower=0)
+
+    out.loc[wohngeld_grundrente] = ((432 + 500) - anzurechnende_rente).clip(lower=0)
+
+    return out
+
+
+def grundsicherung_im_alter_2020(rente_anspr_m):
+    out = ((432 + 500) - rente_anspr_m).clip(lower=0)
     return out
