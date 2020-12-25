@@ -6,7 +6,8 @@ from gettsim.typing import FloatSeries
 def durchschnittl_entgeltpunkte_grundrente(
     entgeltpunkte_grundrente, grundrentenbewertungszeiten
 ):
-    """ Compute average number of entgeltpunkte earned per year of grundrentenzeiten
+    """ Compute average number of Entgeltpunkte earned per month of Grundrentenzeiten.
+    necessary that Grundrentenbewertungszeiten > 0
 
     Parameters
     ----------
@@ -21,8 +22,10 @@ def durchschnittl_entgeltpunkte_grundrente(
 
 
 def höchstwert(grundrentenzeiten):
-    """ Maximum  number of average entgeltpunkte (per month)
-    after adding bonus of entgeltpunkte
+    """ Maximum  number of average Entgeltpunkte (per month)
+    after adding bonus of Entgeltpunkte, only values > 33*12
+    lead to useful results, lower values will still lead to
+    correct final result, but höchstwert cannot be interpreted
 
     Parameters
     ----------
@@ -36,8 +39,7 @@ def höchstwert(grundrentenzeiten):
 
 
 def _kat1(grundrentenzeiten):
-    """ Indicates that person has not enough grundrentenzeiteun to receive grundrente.
-    Relevant to compute bonus of entgeltpunkte.
+    """ Indicates that person is not entitled to Grundrente.
 
     Parameters
     ----------
@@ -52,8 +54,8 @@ def _kat1(grundrentenzeiten):
 
 
 def _kat2(durchschnittl_entgeltpunkte_grundrente, grundrentenzeiten, höchstwert):
-    """ Indicates that person´s average monthly entgeltpunkte will be doubled bc.
-    of grundrente
+    """ Indicates that person´s average monthly Entgeltpunkte will be used to
+    compute Grundrentenzuschlag.
 
     Parameters
     ----------
@@ -66,13 +68,13 @@ def _kat2(durchschnittl_entgeltpunkte_grundrente, grundrentenzeiten, höchstwert
 
     """
     return (grundrentenzeiten >= 33 * 12) & (
-        durchschnittl_entgeltpunkte_grundrente < (0.5 * höchstwert)
+        durchschnittl_entgeltpunkte_grundrente <= (0.5 * höchstwert)
     )
 
 
 def _kat3(durchschnittl_entgeltpunkte_grundrente, grundrentenzeiten, höchstwert):
-    """ Indicates that person´s average monthly entgeltpunkte will be topped up
-    to the höchstwert
+    """ Indicates that person´s average monthly Entgeltpunkte will be topped up
+    to the individual höchstwert to compute Grundrentenzuschlag.
 
     Parameters
     ----------
@@ -92,8 +94,8 @@ def _kat3(durchschnittl_entgeltpunkte_grundrente, grundrentenzeiten, höchstwert
 
 
 def _kat4(durchschnittl_entgeltpunkte_grundrente, grundrentenzeiten, höchstwert):
-    """ Indicates that person is not eligable to grundrente as she earned to
-    many entgeltpunkte
+    """ Indicates that person is not eligible to Grundrente as she earned to
+    many Entgeltpunkte.
 
     Parameters
     ----------
@@ -113,7 +115,7 @@ def _kat4(durchschnittl_entgeltpunkte_grundrente, grundrentenzeiten, höchstwert
 def bonus_entgeltpunkte(
     _kat1, _kat2, _kat3, _kat4, durchschnittl_entgeltpunkte_grundrente, höchstwert
 ):
-    """ Calculate additional entgeltpunkte for person resulting from grundrente
+    """ Calculate additional Entgeltpunkte for person.
 
     Parameters
     ----------
@@ -139,9 +141,10 @@ def bonus_entgeltpunkte(
 def grundrente_vor_einkommensanrechnung(
     bonus_entgeltpunkte, grundrentenbewertungszeiten, rentenwert, zugangsfaktor,
 ):
-    """ Calculate additional pensions payments resulting from grundrente,
-    before taking into account other income
-
+    """ Calculate additional monthly pensions payments resulting from
+    grundrente, before taking into account other income. According to
+    the Grundrentengesetz, zugangsfaktor is limited to 1 for the
+    Grundrentenzuschlag.
     Parameters
     ----------
     bonus_entgeltpunkte
@@ -166,12 +169,13 @@ def grundrente_vor_einkommensanrechnung(
 def grundrente1(
     grundrente_vor_einkommensanrechnung, bruttolohn_m, rente_anspr_m
 ) -> FloatSeries:
-    """ Implement income crediting rule as defined in grundrentengesetz.
-        Assumption: only other income is bruttolohn_m and rente_anspr_m.
+    """ Implement income crediting rule as defined in Grundrentengesetz.
+    Assumption for now: only other income is bruttolohn_m and
+    rente_anspr_m.
 
     Parameters
     ----------
-    grundrente
+    grundrente_vor_einkommensanrechnung
     bruttolohn_m
     rente_anspr_m
     Returns
@@ -186,91 +190,117 @@ def grundrente1(
     return out
 
 
-def anzurechnende_rente(rente_anspr_m, grundrente1):
-    """ implement allowance for grundsicherung im alter if person is eligable for grundrente
-        allowance for wohngeld not implemented yet
+def grundrentenberechtigt(grundrentenzeiten):
+    """ Indicates that person is entitled to Freibetragsregelung.
 
     Parameters
     ----------
-    keine_grundsicherung
-    rente_anspr_m
-    grundrente
-    grundsicherung_grundrente
-    grundsicherung_keine_grundrente
+
+    grundrentenzeiten
 
     Returns
     -------
 
     """
-    gesamtrente = rente_anspr_m + grundrente1
-    out = (gesamtrente - (100 + (gesamtrente - 100) * 0.3).clip(upper=0.5 * 432)).clip(
-        lower=0
-    )
+    return grundrentenzeiten >= 33 * 12
+
+
+def nicht_grundrentenberechtigt(grundrentenzeiten):
+    """ Indicates that person is not entitled to Freibetragsregelung.
+
+    Parameters
+    ----------
+
+    grundrentenzeiten
+
+    Returns
+    -------
+
+    """
+    return grundrentenzeiten < 33 * 12
+
+
+def anzurechnende_rente(
+    rente_anspr_m,
+    grundrente1,
+    grundrentenberechtigt,
+    nicht_grundrentenberechtigt,
+    bruttolohn_m,
+):
+    """ Implement allowance for grundsicherung im alter.
+
+
+    Parameters
+    ----------
+   rente_anspr_m
+   grundrente1
+   grundrentenberechtigt
+   nicht_grundrentenberechtigt
+   bruttolohn_m
+
+    Returns
+    -------
+
+    """
+    gesamtrente = rente_anspr_m + grundrente1 + bruttolohn_m
+
+    out = grundrentenberechtigt.astype(float) * np.nan
+    out.loc[nicht_grundrentenberechtigt] = gesamtrente
+    out.loc[grundrentenberechtigt] = (
+        gesamtrente - (100 + (gesamtrente - 100) * 0.3).clip(upper=0.5 * 432)
+    ).clip(lower=0)
     return out
 
 
-def wohngeld_grundrente(anzurechnende_rente, grundrentenzeiten):
-    return (
-        (500 + 432 - anzurechnende_rente <= 432)
-        & (500 + 432 - anzurechnende_rente > 0)
-        & (grundrentenzeiten >= 33 * 12)
-    )
+def grundsicherung_berechtigt(anzurechnende_rente):
+    """ Indicates that person is entitled to Grundsicherung.
+
+    Parameters
+    ----------
+
+    anzurechnende_rente
+
+    Returns
+    -------
+
+    """
+    return anzurechnende_rente < 932
 
 
-def wohngeld_keine_grundrente(rente_anspr_m, bruttolohn_m, grundrentenzeiten):
-    return (
-        (500 + 432 - (rente_anspr_m + bruttolohn_m) <= 432)
-        & (500 + 432 - (rente_anspr_m + bruttolohn_m) > 0)
-        & (grundrentenzeiten < 33 * 12)
-    )
+def grundsicherung_nicht_berechtigt(anzurechnende_rente):
+    """ Indicates that person is not entitled to Grundsicherung.
 
+    Parameters
+    ----------
 
-def grundsicherung_grundrente(anzurechnende_rente, grundrentenzeiten):
-    return (500 + 432 - anzurechnende_rente > 432) & (grundrentenzeiten >= 33 * 12)
+    anzurechnende_rente
 
+    Returns
+    -------
 
-def grundsicherung_keine_grundrente(rente_anspr_m, bruttolohn_m, grundrentenzeiten):
-    return (500 + 432 - (rente_anspr_m + bruttolohn_m) > 432) & (
-        grundrentenzeiten < 33 * 12
-    )
+    """
+    return anzurechnende_rente >= 932
 
 
 def grundsicherung(
-    anzurechnende_rente,
-    grundsicherung_grundrente,
-    grundsicherung_keine_grundrente,
-    rente_anspr_m,
-    grundrente1,
-    bruttolohn_m,
+    grundsicherung_berechtigt, grundsicherung_nicht_berechtigt, anzurechnende_rente
 ):
-    out = grundsicherung_grundrente.astype(float) * np.nan
+    """ Compute monthly payments of Grundsicherung
 
-    out.loc[grundsicherung_keine_grundrente] = (
-        432 + 500 - (rente_anspr_m + grundrente1 + bruttolohn_m)
-    ).clip(lower=0)
+    Parameters
+    ----------
 
-    out.loc[grundsicherung_grundrente] = ((432 + 500) - anzurechnende_rente).clip(
-        lower=0
-    )
-    return out
+    grundsicherung_berechtigt
+    grundsicherung_nicht_berechtigt
+    anzurechnende_rente
 
+    Returns
+    -------
 
-def wohngeld(
-    wohngeld_grundrente,
-    wohngeld_keine_grundrente,
-    rente_anspr_m,
-    grundrente1,
-    bruttolohn_m,
-    anzurechnende_rente,
-):
-
-    out = wohngeld_grundrente.astype(float) * np.nan
-
-    out.loc[wohngeld_keine_grundrente] = (
-        432 + 500 - (rente_anspr_m + grundrente1 + bruttolohn_m)
-    ).clip(lower=0)
-
-    out.loc[wohngeld_grundrente] = ((432 + 500) - anzurechnende_rente).clip(lower=0)
+    """
+    out = grundsicherung_berechtigt.astype(float) * np.nan
+    out.loc[grundsicherung_nicht_berechtigt] = 0
+    out.loc[grundsicherung_berechtigt] = 932 - anzurechnende_rente
 
     return out
 
